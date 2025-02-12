@@ -8,7 +8,7 @@ export class PaymentsService {
 
   constructor(private readonly ordersService: OrdersService) {
     this.stripe = new Stripe(
-      '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',
+      'key',
       {
         apiVersion: '2024-11-20.acacia',
       },
