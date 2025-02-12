@@ -1,0 +1,148 @@
+
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
+services:
+  - name: docker:dind
+    command: ["--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock"]
+
+
+stages: 
+  - Deploy storage account
+  - Upload artifacts to Azure
+  - Back build image dev
+  #- Build image prod
+  #- Test acceptation dev
+  #- Test acceptation prod
+  #- Release image
+  #- Deploy review
+  #- Cleanup
+  #- Cleanup all
+  #- Deploy staging
+  #- Test staging
+  #- Deploy prod
+  #- Test prod
+  - Destroy storage account
+
+before_script:
+  - docker info
+  - cd APPjs/trinity-devops-app
+  - apk add --no-cache coreutils
+  - apk add --no-cache curl jq
+  - curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz -C /tmp
+  - mv /tmp/azcopy_linux_amd64_*/azcopy /usr/local/bin/
+  - az login --service-principal -u $SPN_CLIENT_ID -p $SPN_CLIENT_SECRET --tenant $AZ_TENANT_ID
+  - az account set --subscription $AZ_SUBSCRIPTION_ID
+  - az account show
+
+      
+Deploy storage account:
+  image: hashicorp/terraform:latest
+  stage: Deploy storage account
+  script:
+    - cd APPjs/terraform
+    - terraform init
+    - terraform apply -auto-approve
+    - terraform output -json > outputs.json
+    - cat outputs.json
+  tags:
+    - terraform-runner 
+
+
+  
+Upload artifacts to Azure:
+  image: mcr.microsoft.com/azure-cli
+  stage: Upload artifacts to Azure
+  script:
+    - az login --service-principal -u $SPN_CLIENT_ID -p $SPN_CLIENT_SECRET --tenant $AZ_TENANT_ID
+    - az storage blob upload-batch -d $AZURE_CONTAINER_NAME --account-name $AZURE_STORAGE_ACCOUNT --account-key $AZURE_STORAGE_KEY -s .
+  tags:
+    - docker-run
+
+Backend build dev:
+  # Official docker image.
+  image: docker:latest
+  stage: Back build image dev
+  script:
+    - docker info
+    - cd APPjs/trinity-devops-app
+    - apk add --no-cache coreutils
+    - apk add --no-cache curl jq
+    - curl -sL https://aka.ms/downloadazcopy-v10-linux | tar -xz -C /tmp
+    - mv /tmp/azcopy_linux_amd64_*/azcopy /usr/local/bin/
+    - az login --service-principal -u $SPN_CLIENT_ID -p $SPN_CLIENT_SECRET --tenant $AZ_TENANT_ID
+    - az account set --subscription $AZ_SUBSCRIPTION_ID
+    - az account show       
+    - pwd
+    - ls -la # vérifier les fichiers dans le répertoire courant
+    - echo $DOCKER_HOST
+    - docker --version
+    - docker info
+    - docker build -t trinity-devops-app:dev -f Dockerfile.dev .
+    - docker save trinity-devops-app:dev > ../../trinity-devops-app-dev.tar
+    - cd ../..
+    - split -b 5M trinity-devops-app-dev.tar trinity-devops-app-dev.tar.part-
+    - gzip trinity-devops-app-dev.tar.part-*
+    - ls -la
+  tags:
+    - docker-run   
+  artifacts:
+    paths:
+      - trinity-devops-app-dev.tar.part-*.gz
+
+      
+
+.build prod:
+  # Official docker image.
+  stage: Build image prod
+  script:
+    - docker build -t trinity-devops-app:prod -f Dockerfile.prod .
+    - docker save trinity-devops-app:prod > trinity-devops-app:prod.tar
+  tags:
+    - docker-run   
+  artifacts:
+    paths:
+      - trinity-devops-app:prod.tar
+
+.test acceptation dev:
+  stage: Test acceptation dev
+  script:
+    - docker load < trinity-devops-app:dev.tar
+    - docker run -p 4000:4000 trinity-devops-app:dev
+    - sleep 5
+    - apk --no-cache add curl
+    - curl "http://docker" | grep -q "Hello World!"
+  tags:
+    - docker-run 
+
+.test acceptation prod:
+  # Official docker image.
+  stage: Test acceptation prod
+  script:
+    - docker load < trinity-devops-app:prod.tar
+    - docker run -p 4000:4000 trinity-devops-app:prod
+    - sleep 5
+    - apk --no-cache add curl
+    - curl "http://docker" | grep -q "Hello World!" 
+  tags:
+    - docker-run 
+
+
+Destroy storage account:
+  image: hashicorp/terraform:latest
+  stage: Destroy storage account
+  script:
+    - cd APPjs/terraform
+    - terraform init
+    - terraform destroy -auto-approve
+  when: manual
+  tags:
+    - terraform-runner
+
+
+  
+
+     
+

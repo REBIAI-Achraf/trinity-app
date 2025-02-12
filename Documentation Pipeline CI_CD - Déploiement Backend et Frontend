@@ -1,0 +1,214 @@
+Documentation Pipeline CI/CD - Déploiement Backend et Frontend
+Objectifs du Pipeline
+
+Le pipeline CI/CD permet :
+
+    Automatisation des tests unitaires, des constructions d'images, et des déploiements.
+
+    Gestion efficace des environnements développement et production.
+
+    Publication contrôlée des images Docker dans des registres.
+
+    Déploiement automatisé dans des environnements cibles.
+
+Pipeline CI/CD - Documentation
+
+1. Variables Importantes
+
+|| Nom de la Variable || Valeur ||
+| DOCKER_HOST | tcp://docker:2375 |
+| DOCKER_TLS_CERTDIR | "" |
+
+2. Étapes du Pipeline
+
+|| Stage || Description ||
+| Deploy Storage Account | Configuration et déploiement avec Terraform et Azure CLI |
+| Back Test Unitaire | Exécution des tests unitaires backend pour valider les fonctions |
+| Back Build Image Dev | Création de l'image Docker pour l'environnement de développement |
+| Back Build Image Prod | Création de l'image Docker pour l'environnement de production |
+| Front Test Unitaire | Exécution des tests unitaires frontend pour valider les interfaces |
+| Front Build Image Dev | Création de l'image Docker pour l'environnement de développement |
+| Front Build Image Prod | Création de l'image Docker pour l'environnement de production |
+| Deploy Dev | Déploiement sur l'environnement de développement |
+| Deploy Prod | Déploiement sur l'environnement de production |
+
+
+Structure Globale du Pipeline
+
+Le pipeline est divisé en plusieurs stages, exécutés séquentiellement ou manuellement selon les besoins. Voici la vue d'ensemble des stages :
+
+🌐 Stage 1: Deploy Storage Account
+
+    ⚙️ Terraform Setup
+
+    🔑 Azure CLI Authentification
+
+🛠️ Stage 2: Backend
+
+    ✅ Tests Unitaires Backend
+
+    🏗️ Build Image Docker (Dev & Prod)
+
+💻 Stage 3: Frontend
+
+    ✅ Tests Unitaires Frontend
+
+    🏗️ Build Image Docker (Dev & Prod)
+
+📦 Stage 4: Deployment
+
+    🚀 Déploiement en environnement de développement (Dev)
+
+    🚀 Déploiement en environnement de production (Prod)
+
+
+Variables Globales
+
+    DOCKER_HOST: Définit l'adresse pour Docker-in-Docker (dind).
+
+    DOCKER_TLS_CERTDIR: Désactive la gestion des certificats TLS.
+
+    Variables Azure : $SPN_CLIENT_ID, $SPN_CLIENT_SECRET, $SPN_TENANT_ID, $AZ_SUBSCRIPTION_ID.
+
+
+
+Détails des Stages
+
+1. Deploy Storage Account
+
+But : Configurer un compte de stockage Azure à l'aide de Terraform.
+
+    Image Docker utilisée : docker:latest
+
+    Script :
+
+        Installation de Terraform.
+
+        Authentification avec Azure CLI.
+
+        Application des configurations Terraform.
+
+Commandes clés :
+
+az login --service-principal -u $SPN_CLIENT_ID -p $SPN_CLIENT_SECRET --tenant $SPN_TENANT_ID
+terraform init
+terraform apply -auto-approve
+
+
+Diagramme :
+
+
+sequenceDiagram
+
+    participant DevOps
+    participant Terraform
+    participant Azure
+    DevOps->>Terraform: Initialise Terraform
+    Terraform->>Azure: Applique les configurations
+    Azure-->>DevOps: Renvoie les détails du compte
+
+2. Tests Unitaires Backend
+
+But : Vérifier le bon fonctionnement du code source backend.
+
+    Image Docker utilisée : docker:latest
+
+    Script :
+
+        Construction d'une image Docker de test.
+
+        Exécution des tests unitaires.
+
+3. Build Image Dev/Prod Backend
+
+But : Construire les images Docker pour les environnements dev et prod.
+
+    Commandes clés :
+
+        Construction de l'image avec Dockerfile.dev ou Dockerfile.prod.
+
+        Sauvegarde de l'image Docker sous forme de fichier .tar.
+
+
+Diagramme :
+
+flowchart TD
+  A[Code Source Backend] --> B[Docker Build]
+  B --> C[Image Docker Dev/Prod]
+  C --> D[Sauvegarde dans Azure Blob Storage]
+
+
+4. Tests Acceptation Dev/Prod Backend
+
+But : Valider l'intégrité et les fonctionnalités du backend.
+
+    Étapes principales :
+
+        Télécharger l'image Docker depuis Azure.
+
+        Charger l'image avec docker load.
+
+        Exécuter l'image et valider la réponse HTTP.
+
+
+5. Release Images Backend
+
+But : Publier les images Docker dans un registre.
+
+    Commandes clés : docker tag IMAGE_ID "${IMAGE_NAME}:${CI_COMMIT_REF_NAME}"
+    docker push "${IMAGE_NAME}:${CI_COMMIT_REF_NAME}"
+
+
+6. Déploiement Backend
+
+But : Déployer les images sur des environnements Dev/Prod.
+7. Frontend (Phases Similaires)
+
+Les étapes pour le frontend (tests, build, déploiement) suivent une logique identique à celle du backend.
+Composants Techniques
+Docker-in-Docker (DinD)
+
+Le service docker:dind est configuré pour permettre la gestion des conteneurs dans le pipeline.
+Terraform
+
+Terraform est utilisé pour gérer l'infrastructure cloud.
+Azure CLI
+
+Azure CLI assure l'interaction avec les services Azure pour les comptes de stockage et le déploiement.
+Schéma Global
+
+
+
+graph TD
+  subgraph Backend
+    B1[Tests Unitaires]
+    B2[Build Image Dev]
+    B3[Build Image Prod]
+    B4[Tests Acceptation Dev]
+    B5[Tests Acceptation Prod]
+    B6[Release Images]
+    B7[Déploiement Dev/Prod]
+  end
+  subgraph Frontend
+    F1[Tests Unitaires]
+    F2[Build Image Dev]
+    F3[Build Image Prod]
+    F4[Tests Acceptation Dev]
+    F5[Tests Acceptation Prod]
+    F6[Release Images]
+    F7[Déploiement Dev/Prod]
+  end
+  A[Déployer Storage Account] --> Backend
+  A --> Frontend
+  Backend --> T[Destruction Storage Account]
+  Frontend --> T
+
+
+
+Améliorations Futures
+
+    Intégration de notifications Slack/Email.
+
+    Optimisation des temps d'exécution des stages.
+
+    Ajout de tests de performance.

@@ -1,0 +1,17 @@
+
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 8080
+
+# Exécuter les tests unitaires
+RUN npm run test
+
+CMD ["npm", "run", "serve"]

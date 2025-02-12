@@ -1,0 +1,17 @@
+FROM node:18
+
+# dossier de travail dans le conteneur
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . . 
+
+# exécuter les tests uniatires
+RUN npm run test
+
+CMD ["npm", "run", "start"]
+
+EXPOSE 4000

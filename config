@@ -1,0 +1,14 @@
+# Config pour GitHub personnel
+# git@github.com:REBIAI-Achraf/trinity-app.git
+# git@githubperso:REBIAI-Achraf/trinity-app.git
+
+Host githubperso
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+
+# Config pour Epitech
+Host t-dev.epitest.eu
+    HostName t-dev.epitest.eu
+    User git
+    IdentityFile ~/.ssh/id_rsa.pub
